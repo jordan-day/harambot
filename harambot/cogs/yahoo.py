@@ -299,6 +299,7 @@ class YahooCog(commands.Cog):
     async def matchups(self, interaction: discord.Interaction):
         await self.set_yahoo_from_interaction(interaction)
         self.poll_for_transactions.start()
+        await interaction.response.send_message('done')
 
     @app_commands.command(
         name="waivers",
@@ -396,7 +397,11 @@ class YahooCog(commands.Cog):
             channel = self.bot.get_channel(self.channel_id)
             ts = datetime.now() - timedelta(minutes=1)
 
+            transactions = self.yahoo_api.get_latest_waiver_transactions()
+            logger.info(f"found {len(transactions)} transactions")
+            logger.info(f"ts: {ts.timestamp()}")
             for transaction in self.yahoo_api.get_latest_waiver_transactions():
+                logger.info(f"transaction timestamp: {transaction['timestamp']}")
                 if int(transaction["timestamp"]) > ts.timestamp():
                     await channel.send(
                         embed=embed_functions_dict[transaction["type"]](transaction)
