@@ -298,7 +298,11 @@ class YahooCog(commands.Cog):
     )
     async def matchups(self, interaction: discord.Interaction):
         await self.set_yahoo_from_interaction(interaction)
-        self.poll_for_transactions.start()
+        if self.poll_for_transactions.is_running():
+            await interaction.response.send_message('already running')
+            return
+        else:
+            self.poll_for_transactions.start()
         await interaction.response.send_message('done')
 
     @app_commands.command(
