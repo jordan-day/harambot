@@ -59,7 +59,8 @@ class YahooCog(commands.Cog):
     async def set_yahoo_from_config(
         self
     ):
-        guild = Guild.get(Guild.guild_id == str(self.guild_id))
+        guild = Guild.get_or_create(guild_id = str(self.guild_id))
+        logger.info('test omg')
         self.yahoo_api = Yahoo(
             OAuth2(
                 self.KEY, self.SECRET, store_file=False, **model_to_dict(guild)
@@ -298,21 +299,25 @@ class YahooCog(commands.Cog):
         description="Returns the wavier transactions from the last 24 hours",
     )
     async def waivers(self, interaction: discord.Interaction):
-        await self.set_yahoo_from_interaction(interaction)
-        await interaction.response.defer(thinking=True)
-        embed_functions_dict = {
-            "add/drop": self.create_add_drop_embed,
-            "add": self.create_add_embed,
-            "drop": self.create_drop_embed,
-        }
-        for transaction in self.yahoo_api.get_latest_waiver_transactions():
-            await interaction.followup.send(
-                embed=embed_functions_dict[transaction["type"]](transaction)
-            )
+        try:
+
+            await self.set_yahoo_from_interaction(interaction)
+            await interaction.response.defer(thinking=True)
+            embed_functions_dict = {
+                "add/drop": self.create_add_drop_embed,
+                "add": self.create_add_embed,
+                "drop": self.create_drop_embed,
+            }
+            for transaction in self.yahoo_api.get_latest_waiver_transactions():
+                await interaction.followup.send(
+                    embed=embed_functions_dict[transaction["type"]](transaction)
+                )
+        except:
+            logger.exception("Error while getting waivers")
 
     def create_add_embed(self, transaction):
         logger.info(f"transaction: {transaction}")
-        owner = transaction["players"]["0"]["player"][1]["transaction_data"]["destination_team_name"]
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"][0]["destination_team_name"]
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
         embed = discord.Embed(title=f"Player added by {owner}", colour=0x06B900)
@@ -325,7 +330,7 @@ class YahooCog(commands.Cog):
     def create_drop_embed(self, transaction):
         logger.info(f"transaction: {transaction}")
 
-        owner = transaction["players"]["0"]["player"][1]["transaction_data"]["source_team_name"]
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"][0]["source_team_name"]
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
         logger.info(f"headshot: {headshot}")
@@ -396,5 +401,5 @@ class YahooCog(commands.Cog):
 
     @poll_for_transactions.before_loop
     async def before_poll_for_transactions(self):
-        await self.bot.wait_until_ready()
+        await self.bot.wait_for("guild_available")
         logger.info("Finished waiting")

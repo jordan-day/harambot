@@ -3,7 +3,7 @@ services:
   name: harambot-service
   runtime: image
   image:
-      url: docker.io/dmcp89/harambot:latest
+      url: docker.io/jayde250/harambot:latest
   plan: free
   envVars:
       - key: DISCORD_TOKEN

@@ -30,7 +30,6 @@ bot.remove_command("help")
 
 @bot.event
 async def on_ready():
-    logger.info('doing something')
     await bot.add_cog(Meta(bot))
     await bot.add_cog(YahooCog(bot, settings.yahoo_key, settings.yahoo_secret, settings.guild_id, settings.channel_id))
     await bot.add_cog(Misc(bot))
