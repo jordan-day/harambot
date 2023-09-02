@@ -30,7 +30,6 @@ class YahooCog(commands.Cog):
         self.yahoo_api = None
         self.guild_id = guild_id
         self.channel_id = channel_id
-        self.poll_for_transactions.start()
 
     async def cog_before_invoke(self, ctx):
         guild = Guild.get(Guild.guild_id == str(ctx.guild.id))
@@ -59,7 +58,7 @@ class YahooCog(commands.Cog):
     async def set_yahoo_from_config(
         self
     ):
-        guild = Guild.get_or_create(guild_id = str(self.guild_id))
+        guild = Guild.get(Guild.guild_id == str(self.guild_id))
         logger.info('test omg')
         self.yahoo_api = Yahoo(
             OAuth2(
@@ -295,6 +294,13 @@ class YahooCog(commands.Cog):
             await interaction.response.send_message(self.error_message)
 
     @app_commands.command(
+    name="start-polling", description="sets the yahoo config and starts polling for waivers"
+    )
+    async def matchups(self, interaction: discord.Interaction):
+        await self.set_yahoo_from_interaction(interaction)
+        self.poll_for_transactions.start()
+
+    @app_commands.command(
         name="waivers",
         description="Returns the wavier transactions from the last 24 hours",
     )
@@ -382,7 +388,6 @@ class YahooCog(commands.Cog):
     async def poll_for_transactions(self):
         try:
             logger.info('polling for transactions')
-            await self.set_yahoo_from_config()
             embed_functions_dict = {
                 "add/drop": self.create_add_drop_embed,
                 "add": self.create_add_embed,
@@ -398,8 +403,3 @@ class YahooCog(commands.Cog):
                     )
         except:
             logger.exception("Error while polling for transactions")
-
-    @poll_for_transactions.before_loop
-    async def before_poll_for_transactions(self):
-        await self.bot.wait_until_ready()
-        logger.info("Finished waiting")
