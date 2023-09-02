@@ -330,7 +330,7 @@ class YahooCog(commands.Cog):
     def create_drop_embed(self, transaction):
         logger.info(f"transaction: {transaction}")
 
-        owner = transaction["players"]["0"]["player"][1]["transaction_data"][0]["source_team_name"]
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"]["source_team_name"]
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
         logger.info(f"headshot: {headshot}")
@@ -401,5 +401,5 @@ class YahooCog(commands.Cog):
 
     @poll_for_transactions.before_loop
     async def before_poll_for_transactions(self):
-        await self.bot.wait_for("guild_available")
+        await self.bot.wait_until_ready()
         logger.info("Finished waiting")
