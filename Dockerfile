@@ -1,17 +1,14 @@
-FROM python:3.10.7-slim
+# Use an official Python runtime as a parent image
+FROM python:3.9
 
-RUN apt-get update
-RUN apt-get upgrade -y
-RUN apt-get install -y gcc libc-dev make git libffi-dev python3-dev libxml2-dev libxslt-dev
+# Set the working directory to /app
+WORKDIR /app
 
-RUN apt-get install -y default-libmysqlclient-dev
+# Copy the local package to the container's /app directory
+COPY . /app
 
-RUN apt-get install -y libpq-dev
+# Install your Python package and its dependencies
+RUN pip install .
 
-RUN pip install -U pip
-
-RUN pip install harambot
-
-EXPOSE  10000
-
-CMD ["harambot"]
+# Define the command to run your package (adjust as needed)
+CMD ["python", "harambot/bot.py"]

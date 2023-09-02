@@ -2,7 +2,7 @@ import logging
 import discord
 
 
-from discord.ext import commands
+from discord.ext import commands, tasks
 from harambot.cogs.meta import Meta
 from harambot.cogs.misc import Misc
 from harambot.cogs.yahoo import YahooCog
@@ -30,8 +30,9 @@ bot.remove_command("help")
 
 @bot.event
 async def on_ready():
+    logger.info('doing something')
     await bot.add_cog(Meta(bot))
-    await bot.add_cog(YahooCog(bot, settings.yahoo_key, settings.yahoo_secret))
+    await bot.add_cog(YahooCog(bot, settings.yahoo_key, settings.yahoo_secret, settings.guild_id, settings.channel_id))
     await bot.add_cog(Misc(bot))
     server = WebServer(bot)
     await bot.add_cog(server)
@@ -42,7 +43,7 @@ async def on_ready():
     if "RUN_MIGRATIONS" in settings and settings.run_migrations:
         migrations[settings.version]()
     await bot.tree.sync()
-    logger.info("Everything's all ready to go~")
+    logger.info("Everything's all ready to go!")
 
 
 @bot.event

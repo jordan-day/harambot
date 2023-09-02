@@ -2,10 +2,11 @@ import discord
 import logging
 import urllib3
 
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from yahoo_oauth import OAuth2
 from playhouse.shortcuts import model_to_dict
+from datetime import datetime, timedelta
 
 from harambot.yahoo_api import Yahoo
 from harambot.database.models import Guild
@@ -21,12 +22,15 @@ class YahooCog(commands.Cog):
         "I'm having trouble getting that right now please try again later"
     )
 
-    def __init__(self, bot, KEY, SECRET):
+    def __init__(self, bot, KEY, SECRET, guild_id=None, channel_id=None):
         self.bot = bot
         self.http = urllib3.PoolManager()
         self.KEY = KEY
         self.SECRET = SECRET
         self.yahoo_api = None
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.poll_for_transactions.start()
 
     async def cog_before_invoke(self, ctx):
         guild = Guild.get(Guild.guild_id == str(ctx.guild.id))
@@ -49,6 +53,19 @@ class YahooCog(commands.Cog):
             ),
             guild.league_id,
             guild.league_type,
+        )
+        return
+    
+    async def set_yahoo_from_config(
+        self
+    ):
+        guild = Guild.get(Guild.guild_id == str(self.guild_id))
+        self.yahoo_api = Yahoo(
+            OAuth2(
+                self.KEY, self.SECRET, store_file=False, **model_to_dict(guild)
+            ),
+            guild.league_id,
+            guild.league_type
         )
         return
 
@@ -277,10 +294,10 @@ class YahooCog(commands.Cog):
             await interaction.response.send_message(self.error_message)
 
     @app_commands.command(
-        name="waviers",
+        name="waivers",
         description="Returns the wavier transactions from the last 24 hours",
     )
-    async def waviers(self, interaction: discord.Interaction):
+    async def waivers(self, interaction: discord.Interaction):
         await self.set_yahoo_from_interaction(interaction)
         await interaction.response.defer(thinking=True)
         embed_functions_dict = {
@@ -294,54 +311,90 @@ class YahooCog(commands.Cog):
             )
 
     def create_add_embed(self, transaction):
-        embed = discord.Embed(title="Player Added")
+        logger.info(f"transaction: {transaction}")
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"]["destination_team_name"]
+        player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
+        headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
+        embed = discord.Embed(title=f"Player added by {owner}", colour=0x06B900)
+        embed.set_thumbnail(url=headshot)
         self.add_player_fields_to_embed(
             embed, transaction["players"]["0"]["player"][0]
-        )
-        embed.add_field(
-            name="Owner",
-            value=transaction["players"]["0"]["player"][1]["transaction_data"][
-                0
-            ]["destination_team_name"],
         )
         return embed
 
     def create_drop_embed(self, transaction):
-        embed = discord.Embed(title="Player Dropped")
+        logger.info(f"transaction: {transaction}")
+
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"]["source_team_name"]
+        player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
+        headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
+        logger.info(f"headshot: {headshot}")
+        embed = discord.Embed(title=f"Player dropped by {owner}", colour=0xFF0000)
+        embed.set_thumbnail(url=headshot)
         self.add_player_fields_to_embed(
             embed, transaction["players"]["0"]["player"][0]
-        )
-        embed.add_field(
-            name="Owner",
-            value=transaction["players"]["0"]["player"][1]["transaction_data"][
-                "source_team_name"
-            ],
         )
         return embed
 
     def create_add_drop_embed(self, transaction):
-        embed = discord.Embed(title="Player Added/ Player Dropped")
+        owner = transaction["players"]["0"]["player"][1]["transaction_data"][
+                0
+            ]["destination_team_name"]
+        logger.info(f"player: {transaction['players']['0']}")
+    
+        player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
+        headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
+        logger.info(f"headshot: {headshot}")
+        embed = discord.Embed(title=f"Player added/dropped by {owner}", colour=0xFFFF00)
+        embed.set_thumbnail(url=headshot)
         embed.add_field(
-            name="Player Added", value="=====================", inline=True
+            name="Player Added", value="=====================", inline=False
         )
         self.add_player_fields_to_embed(
-            embed, transaction["players"]["0"]["player"][0]
+            embed, transaction["players"]["0"]["player"][0], inline=True
         )
         embed.add_field(
-            name="Player Dropped", value="=====================", inline=True
+            name="Player Dropped", value="=====================", inline=False
         )
         self.add_player_fields_to_embed(
-            embed, transaction["players"]["1"]["player"][0]
+            embed, transaction["players"]["1"]["player"][0], inline=True
         )
+        
         return embed
 
-    def add_player_fields_to_embed(self, embed, player):
+    def add_player_fields_to_embed(self, embed, player, inline=True):
         embed.add_field(
-            name="Player", value=player[2]["name"]["full"], inline=True
+            name="Player", value=player[2]["name"]["full"], inline=inline
         )
         embed.add_field(
-            name="Team", value=player[3]["editorial_team_abbr"], inline=True
+            name="Team", value=player[3]["editorial_team_abbr"], inline=inline
         )
         embed.add_field(
-            name="Position", value=player[4]["display_position"], inline=True
+            name="Position", value=player[4]["display_position"], inline=inline
         )
+
+    @tasks.loop(seconds=60.0)
+    async def poll_for_transactions(self):
+        try:
+            logger.info('polling for transactions')
+            await self.set_yahoo_from_config()
+            embed_functions_dict = {
+                "add/drop": self.create_add_drop_embed,
+                "add": self.create_add_embed,
+                "drop": self.create_drop_embed,
+            }
+            channel = self.bot.get_channel(self.channel_id)
+            ts = datetime.now() - timedelta(minutes=1)
+
+            for transaction in self.yahoo_api.get_latest_waiver_transactions():
+                if int(transaction["timestamp"]) > ts.timestamp():
+                    await channel.send(
+                        embed=embed_functions_dict[transaction["type"]](transaction)
+                    )
+        except:
+            logger.exception("Error while polling for transactions")
+
+    @poll_for_transactions.before_loop
+    async def before_poll_for_transactions(self):
+        await self.bot.wait_until_ready()
+        logger.info("Finished waiting")

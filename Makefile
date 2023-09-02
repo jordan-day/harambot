@@ -16,8 +16,8 @@ test:
 	@python -m pytest -v
 
 run:
-	@pip install -r requirements.txt
-	@python ${MODULE}/bot.py
+	@docker build . -t harambot:local
+	@docker compose up
 
 build-image:
 	@echo "${BLUE}Building docker image.."
