@@ -193,7 +193,6 @@ class Yahoo:
         except Exception:
             logger.exception("Error while fetching latest trade")
 
-    @cached(cache=TTLCache(maxsize=1024, ttl=60))
     def get_latest_waiver_transactions(self):
         ts = datetime.now() - timedelta(days=1)
         transactions = self.league().transactions("add,drop", "")
