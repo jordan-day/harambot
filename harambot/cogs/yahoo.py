@@ -399,9 +399,9 @@ class YahooCog(commands.Cog):
 
             transactions = self.yahoo_api.get_latest_waiver_transactions()
             logger.info(f"found {len(transactions)} transactions")
-            logger.info(f"ts: {ts.timestamp()}")
-            for transaction in self.yahoo_api.get_latest_waiver_transactions():
-                logger.info(f"transaction timestamp: {transaction['timestamp']}")
+            logger.info(f"ts: {ts.timestamp()}, time: {datetime.fromtimestamp(ts.timestamp())}")
+            for transaction in transactions:
+                logger.info(f"transaction timestamp: {transaction['timestamp']}, time: {datetime.fromtimestamp(int(transaction['timestamp']))}")
                 if int(transaction["timestamp"]) > ts.timestamp():
                     logger.info(f"sending message to channel: {self.channel_id}")
                     await channel.send(
