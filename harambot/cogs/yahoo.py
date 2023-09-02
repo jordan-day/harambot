@@ -53,13 +53,13 @@ class YahooCog(commands.Cog):
             guild.league_id,
             guild.league_type,
         )
+        self.channel_id = interaction.channel_id
         return
     
     async def set_yahoo_from_config(
         self
     ):
         guild = Guild.get(Guild.guild_id == str(self.guild_id))
-        logger.info('test omg')
         self.yahoo_api = Yahoo(
             OAuth2(
                 self.KEY, self.SECRET, store_file=False, **model_to_dict(guild)
@@ -327,7 +327,6 @@ class YahooCog(commands.Cog):
             logger.exception("Error while getting waivers")
 
     def create_add_embed(self, transaction):
-        logger.info(f"transaction: {transaction}")
         owner = transaction["players"]["0"]["player"][1]["transaction_data"][0]["destination_team_name"]
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
@@ -339,12 +338,10 @@ class YahooCog(commands.Cog):
         return embed
 
     def create_drop_embed(self, transaction):
-        logger.info(f"transaction: {transaction}")
 
         owner = transaction["players"]["0"]["player"][1]["transaction_data"]["source_team_name"]
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
-        logger.info(f"headshot: {headshot}")
         embed = discord.Embed(title=f"Player dropped by {owner}", colour=0xFF0000)
         embed.set_thumbnail(url=headshot)
         self.add_player_fields_to_embed(
@@ -356,11 +353,9 @@ class YahooCog(commands.Cog):
         owner = transaction["players"]["0"]["player"][1]["transaction_data"][
                 0
             ]["destination_team_name"]
-        logger.info(f"player: {transaction['players']['0']}")
     
         player_id = int(transaction["players"]["0"]["player"][0][1]["player_id"])
         headshot= self.yahoo_api.get_player_details(player_id)["headshot"]["url"]
-        logger.info(f"headshot: {headshot}")
         embed = discord.Embed(title=f"Player added/dropped by {owner}", colour=0xFFFF00)
         embed.set_thumbnail(url=headshot)
         embed.add_field(
