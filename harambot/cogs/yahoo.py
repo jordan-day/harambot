@@ -303,7 +303,7 @@ class YahooCog(commands.Cog):
             return
         else:
             self.poll_for_transactions.start()
-        await interaction.response.send_message('done')
+        await interaction.response.send_message('done', ephemeral=True)
 
     @app_commands.command(
         name="waivers",
