@@ -28,7 +28,9 @@ class Yahoo:
 
     @cached(cache=TTLCache(maxsize=1024, ttl=600))
     def league(self):
-        if not self.oauth.token_is_valid():
+        is_valid = self.oauth.token_is_valid()
+        logger.info("Token is valid: {}".format(is_valid))
+        if not is_valid:
             self.oauth.refresh_access_token()
         gm = game.Game(self.oauth, self.league_type)
         league = gm.to_league("{}.l.{}".format(gm.game_id(), self.league_id))
