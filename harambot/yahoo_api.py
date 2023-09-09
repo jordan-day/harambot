@@ -8,7 +8,7 @@ from cachetools import cached, TTLCache
 from datetime import datetime, timedelta
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 logging.disable(logging.DEBUG)
 
@@ -193,6 +193,55 @@ class Yahoo:
             return
         except Exception:
             logger.exception("Error while fetching latest trade")
+
+    def normalize_trade_data(self, trade_data):
+        normalized_data = {
+            "transaction_key": trade_data["transaction_key"],
+            "transaction_id": trade_data["transaction_id"],
+            "type": trade_data["type"],
+            "status": trade_data["status"],
+            "timestamp": trade_data["timestamp"],
+            "trader_team_key": trade_data["trader_team_key"],
+            "trader_team_name": trade_data["trader_team_name"],
+            "tradee_team_key": trade_data["tradee_team_key"],
+            "tradee_team_name": trade_data["tradee_team_name"],
+            "player_count": trade_data["players"].get("count", 0),
+            "players": [],
+        }
+
+        for i in range(normalized_data["player_count"]):
+            player_info = trade_data["players"][str(i)]
+
+            player_data = player_info.get("player", [])[0]
+
+            transaction_data = player_info.get("player", [])[1]["transaction_data"]
+
+            player = {
+                "player_key": player_data[0]["player_key"],
+                "player_id": player_data[1]["player_id"],
+                "name": player_data[2]["name"]["full"],
+                "team_abbr": player_data[3]["editorial_team_abbr"],
+                "display_position": player_data[4]["display_position"],
+                "position_type": player_data[5]["position_type"],
+                "source_team_name": transaction_data[0].get("source_team_name", ""),
+                "destination_team_name": transaction_data[0].get("destination_team_name", ""),
+            }
+
+            normalized_data["players"].append(player)
+
+        return normalized_data
+
+    def get_latest_trades(self):
+        ts = datetime.now() - timedelta(hours=1)
+        transactions = self.league().transactions("trade", "")
+        filtered_transactions = [
+            t for t in transactions if int(t["timestamp"]) > ts.timestamp() and t["status"] == "successful"
+        ]
+        logger.info(f'found {transactions.len} trades')
+        trades = []
+        for transaction in filtered_transactions:
+            trades.append(self.normalize_trade_data(transaction))
+        return trades
 
     def get_latest_waiver_transactions(self):
         ts = datetime.now() - timedelta(days=1)

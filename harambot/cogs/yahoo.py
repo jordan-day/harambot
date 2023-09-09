@@ -53,6 +53,8 @@ class YahooCog(commands.Cog):
             guild.league_id,
             guild.league_type,
         )
+        logger.info(f"yahoo_api: {self.yahoo_api}")
+        self.guild_id = interaction.guild_id
         self.channel_id = interaction.channel_id
         return
     
@@ -296,13 +298,17 @@ class YahooCog(commands.Cog):
     @app_commands.command(
     name="start-polling", description="sets the yahoo config and starts polling for waivers"
     )
-    async def matchups(self, interaction: discord.Interaction):
+    async def start_polling(self, interaction: discord.Interaction):
         await self.set_yahoo_from_interaction(interaction)
         if self.poll_for_transactions.is_running():
-            await interaction.response.send_message('already running')
-            return
+            await interaction.response.send_message('already running', ephemeral=True)
         else:
             self.poll_for_transactions.start()
+
+        if not self.refresh_token.is_running():
+            logger.info('starting refresh token')
+            self.refresh_token.start()
+        
         await interaction.response.send_message('done', ephemeral=True)
 
     @app_commands.command(
@@ -335,6 +341,61 @@ class YahooCog(commands.Cog):
         self.add_player_fields_to_embed(
             embed, transaction["players"]["0"]["player"][0]
         )
+        return embed
+    
+
+
+    def create_trade_embed(self, trade):
+        trader_team_name = trade["trader_team_name"]
+        tradee_team_name = trade["tradee_team_name"]
+        embed = discord.Embed(
+            title=f"Trade between {trader_team_name} and {tradee_team_name}",
+            colour=0xff00ff
+        )
+
+        # Separate players into two lists based on destination team
+        traders_players = []
+        tradees_players = []
+
+        for player in trade["players"]:
+            if player["destination_team_name"] == trader_team_name:
+                traders_players.append(player)
+            elif player["destination_team_name"] == tradee_team_name:
+                tradees_players.append(player)
+
+        embed.add_field(
+            name=f"Players to {trader_team_name}",
+            value="=====================",
+            inline=False
+        )
+
+        for player in traders_players:
+            embed.add_field(
+                name="Player", value=player["name"], inline=False
+            )
+            embed.add_field(
+                name="Team", value=player["team_abbr"], inline=False
+            )
+            embed.add_field(
+                name="Position", value=player["display_position"], inline=False
+            )
+        
+        embed.add_field(
+            name=f"Players to {tradee_team_name}",
+            value="=====================",
+            inline=False
+        )
+        for player in tradees_players:
+            embed.add_field(
+                name="Player", value=player["name"], inline=False
+            )
+            embed.add_field(
+                name="Team", value=player["team_abbr"], inline=False
+            )
+            embed.add_field(
+                name="Position", value=player["display_position"], inline=False
+            )
+
         return embed
 
     def create_drop_embed(self, transaction):
@@ -392,19 +453,29 @@ class YahooCog(commands.Cog):
                 "add/drop": self.create_add_drop_embed,
                 "add": self.create_add_embed,
                 "drop": self.create_drop_embed,
+                "trade": self.create_trade_embed
             }
             channel = self.bot.get_channel(self.channel_id)
             ts = datetime.now() - timedelta(minutes=1)
 
             transactions = self.yahoo_api.get_latest_waiver_transactions()
+            trades = self.yahoo_api.get_latest_trades()
+            transactions.extend(trades)
             logger.info(f"found {len(transactions)} transactions")
-            logger.info(f"ts: {ts.timestamp()}, time: {datetime.fromtimestamp(ts.timestamp())}")
             for transaction in transactions:
-                logger.info(f"transaction timestamp: {transaction['timestamp']}, time: {datetime.fromtimestamp(int(transaction['timestamp']))}")
+                logger.debug(f"transaction timestamp: {transaction['timestamp']}, time: {datetime.fromtimestamp(int(transaction['timestamp']))}")
                 if int(transaction["timestamp"]) > ts.timestamp():
-                    logger.info(f"sending message to channel: {self.channel_id}")
+                    logger.debug(f"sending message to channel: {self.channel_id}")
                     await channel.send(
                         embed=embed_functions_dict[transaction["type"]](transaction)
                     )
         except:
             logger.exception("Error while polling for transactions")
+
+    @tasks.loop(seconds=600.0)
+    async def refresh_token(self):
+        logger.info('refreshing token')
+        try:
+            await self.set_yahoo_from_config()
+        except:
+            logger.exception("Error while refreshing token")

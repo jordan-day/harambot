@@ -43,6 +43,7 @@ async def on_ready():
         migrations[settings.version]()
     await bot.tree.sync()
     logger.info("Everything's all ready to go!")
+    logger.info("lets go!")
 
 
 @bot.event
