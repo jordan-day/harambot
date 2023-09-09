@@ -237,7 +237,7 @@ class Yahoo:
         filtered_transactions = [
             t for t in transactions if int(t["timestamp"]) > ts.timestamp() and t["status"] == "successful"
         ]
-        logger.info(f'found {transactions.len} trades')
+        logger.info(f'found {len(transactions)} trades')
         trades = []
         for transaction in filtered_transactions:
             trades.append(self.normalize_trade_data(transaction))
